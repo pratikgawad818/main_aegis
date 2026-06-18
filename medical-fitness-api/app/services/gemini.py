@@ -22,10 +22,18 @@ from app.config import (
 logger = logging.getLogger(__name__)
 
 if not GEMINI_API_KEY:
-    logger.warning("GEMINI_API_KEY is not set. Add it to your .env file.")
+    logger.warning("GEMINI_API_KEY is not set. Set it before verifying (e.g. in .env).")
 
-# One shared Gemini client for the whole app.
-client = genai.Client(api_key=GEMINI_API_KEY)
+# The client is created on first use (not at import) so the app still starts
+# even without a key - you only get an error when you actually verify a document.
+_client = None
+
+
+def _get_client():
+    global _client
+    if _client is None:
+        _client = genai.Client(api_key=GEMINI_API_KEY)
+    return _client
 
 
 # The instruction we send to Gemini. The candidate name is added separately
