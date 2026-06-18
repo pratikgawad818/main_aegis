@@ -29,4 +29,12 @@ uvicorn main:app --reload
 
 Then open http://127.0.0.1:8000 in your browser.
 
+### Or run with Docker
+
+```bash
+cd medical-fitness-api
+docker build -t medverify .
+docker run -p 8000:8000 --env-file .env medverify
+```
+
 Full documentation: [medical-fitness-api/README.md](medical-fitness-api/README.md)

@@ -1,0 +1,13 @@
+# Keep the image small and free of secrets
+venv/
+__pycache__/
+*.pyc
+.env
+audit.log
+uploads/
+.git/
+.gitignore
+.DS_Store
+Dockerfile
+.dockerignore
+README.md
