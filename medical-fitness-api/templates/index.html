@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="MedVerify — AI medical fitness certificate verification" />
+<title>MedVerify — Medical Fitness Verification</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏥</text></svg>" />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  :root {
+    --surface:#FFFFFF; --bg:#EAE7F8; --ink:#0F172A; --ink-2:#475569; --ink-3:#94A3B8;
+    --line:#E5E9F2; --brand:#2563EB; --brand-2:#1D4ED8; --indigo:#6366F1;
+    --ok:#10B981; --ok-bg:#E7F8F0; --warn:#F59E0B; --warn-bg:#FFFBEB;
+    --bad:#EF4444; --bad-bg:#FEF2F2;
+    --radius:20px; --shadow:0 24px 60px rgba(79,70,229,.13),0 4px 14px rgba(15,23,42,.05);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    color:var(--ink); min-height:100vh; -webkit-font-smoothing:antialiased;
+    background:
+      radial-gradient(900px circle at 12% 16%, #E6DFFA 0%, transparent 45%),
+      radial-gradient(820px circle at 88% 20%, #FBE7D6 0%, transparent 45%),
+      radial-gradient(1000px circle at 50% 100%, #CFE6F4 0%, transparent 55%),
+      linear-gradient(135deg, #E9E3F8 0%, #DCE6F6 50%, #F8ECDD 100%);
+    background-attachment:fixed;
+  }
+  :focus-visible { outline:2px solid var(--brand); outline-offset:2px; border-radius:5px; }
+
+  /* ── Top bar ── */
+  .topbar {
+    position:sticky; top:0; z-index:20;
+    background:rgba(255,255,255,.55); backdrop-filter:blur(16px);
+    border-bottom:1px solid rgba(255,255,255,.6);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 24px;
+  }
+  .brand { display:flex; align-items:center; gap:11px; }
+  .brand-logo {
+    width:38px; height:38px; border-radius:11px;
+    background:linear-gradient(135deg,#3B82F6,#6366F1);
+    display:flex; align-items:center; justify-content:center; font-size:19px;
+    box-shadow:0 6px 16px rgba(79,70,229,.35);
+  }
+  .brand-name { font-size:16px; font-weight:800; letter-spacing:-.4px; }
+  .brand-sub  { font-size:11px; color:var(--ink-3); font-weight:500; margin-top:-1px; }
+  .status-pill {
+    display:flex; align-items:center; gap:7px;
+    background:var(--ok-bg); color:var(--ok);
+    font-size:12px; font-weight:600; padding:6px 13px; border-radius:30px;
+    border:1px solid transparent; cursor:pointer; transition:all .15s;
+  }
+  .status-pill:hover { border-color:currentColor; }
+  .status-pill.offline { background:var(--bad-bg); color:var(--bad); }
+  .status-pill.loading { background:var(--surface-2,#F1F5F9); color:var(--ink-3); }
+  .status-dot { width:7px; height:7px; border-radius:50%; background:currentColor; animation:pulse 2s infinite; }
+  .status-pill.offline .status-dot { animation:none; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* ── Layout ── */
+  .wrap { max-width:600px; margin:0 auto; padding:40px 24px 64px; }
+  .page-head { margin-bottom:20px; }
+  .page-title { font-size:27px; font-weight:800; letter-spacing:-.7px; color:#1E293B; }
+  .page-sub { font-size:14px; color:var(--ink-2); margin-top:8px; line-height:1.55; }
+
+  /* ── Card ── */
+  .card {
+    background:rgba(255,255,255,.78); backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,.7);
+    border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:26px; margin-bottom:18px;
+  }
+  .card-head { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+  .card-ico {
+    width:40px; height:40px; border-radius:11px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:18px;
+    background:linear-gradient(135deg,#E0F2FE,#EDE9FE);
+  }
+  .card-title { font-size:15px; font-weight:700; }
+  .card-desc { font-size:12px; color:var(--ink-3); margin-top:2px; }
+
+  /* ── Form ── */
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px; }
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field label { font-size:12px; font-weight:600; color:var(--ink-2); }
+  .field label .opt { color:var(--ink-3); font-weight:400; }
+  .field input {
+    padding:11px 14px; border:1.5px solid var(--line); border-radius:10px;
+    font-size:14px; font-family:inherit; color:var(--ink); background:#F8FAFC;
+    transition:border-color .15s, box-shadow .15s, background .15s;
+  }
+  .field input:focus { outline:none; border-color:var(--brand); background:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.14); }
+  .field input.bad { border-color:var(--bad); box-shadow:0 0 0 3px rgba(239,68,68,.12); }
+  .err { font-size:12px; color:var(--bad); font-weight:500; display:none; }
+  .err.show { display:block; }
+
+  /* ── Drop zone ── */
+  .drop {
+    position:relative; border:2px dashed #CBD5E1; border-radius:14px;
+    padding:34px 20px; text-align:center; cursor:pointer; transition:all .2s;
+    background:rgba(255,255,255,.5);
+  }
+  .drop:hover, .drop.over { border-color:var(--brand); background:rgba(37,99,235,.06); }
+  .drop.has { border-color:var(--ok); background:var(--ok-bg); border-style:solid; }
+  .drop input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+  .drop-ic {
+    width:48px; height:48px; border-radius:13px; margin:0 auto 12px;
+    background:linear-gradient(135deg,#E5ECFD,#EDE9FE); display:flex; align-items:center; justify-content:center; font-size:22px;
+  }
+  .drop.has .drop-ic { background:#D1FAE5; }
+  .drop-1 { font-size:14px; font-weight:600; }
+  .drop-2 { font-size:12px; color:var(--ink-3); margin-top:3px; }
+  .drop-file { font-size:13px; font-weight:600; color:var(--ok); margin-top:7px; word-break:break-all; }
+
+  /* ── Button ── */
+  .btn {
+    width:100%; border:none; cursor:pointer; font-family:inherit;
+    background:linear-gradient(135deg,var(--brand),var(--brand-2)); color:#fff;
+    padding:14px; border-radius:11px; font-size:14px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    box-shadow:0 6px 16px rgba(37,99,235,.28); transition:transform .15s, box-shadow .2s, opacity .2s;
+    margin-top:18px;
+  }
+  .btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 9px 22px rgba(37,99,235,.36); }
+  .btn:disabled { opacity:.6; cursor:not-allowed; box-shadow:none; }
+  .btn-ghost {
+    width:auto; background:var(--surface); color:var(--ink); border:1.5px solid var(--line);
+    padding:9px 16px; font-size:13px; font-weight:600; border-radius:9px; box-shadow:none; margin:0;
+    display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-family:inherit;
+  }
+  .btn-ghost:hover { background:var(--bg); }
+
+  /* ── Spinner ── */
+  #spinner { display:none; }
+  .spin-card { display:flex; align-items:center; gap:16px; }
+  .ring {
+    width:30px; height:30px; border:3px solid var(--line); border-top-color:var(--brand);
+    border-radius:50%; animation:spin .7s linear infinite; flex-shrink:0;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .spin-1 { font-size:14px; font-weight:600; }
+  .spin-2 { font-size:12px; color:var(--ink-3); margin-top:2px; }
+
+  /* ── Result ── */
+  #result { display:none; animation:rise .35s ease; }
+  @keyframes rise { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+  .verdict {
+    border-radius:var(--radius); padding:24px 26px; margin-bottom:18px; color:#fff;
+    display:flex; align-items:center; gap:18px; position:relative; overflow:hidden;
+  }
+  .verdict::after {
+    content:''; position:absolute; right:-30px; top:-30px;
+    width:130px; height:130px; border-radius:50%; background:rgba(255,255,255,.12);
+  }
+  .v-APPROVED { background:linear-gradient(135deg,#059669,#10B981); }
+  .v-APPROVED_WITH_REVIEW { background:linear-gradient(135deg,#D97706,#F59E0B); }
+  .v-REJECTED { background:linear-gradient(135deg,#DC2626,#EF4444); }
+  .v-MANUAL_REVIEW_REQUIRED { background:linear-gradient(135deg,#4F46E5,#6366F1); }
+  .v-ico { font-size:38px; position:relative; z-index:1; }
+  .v-info { position:relative; z-index:1; flex:1; }
+  .v-label { font-size:11px; font-weight:600; opacity:.8; text-transform:uppercase; letter-spacing:1px; }
+  .v-text { font-size:21px; font-weight:800; letter-spacing:-.4px; margin-top:3px; }
+  .v-time { font-size:11px; opacity:.7; margin-top:4px; }
+  .v-tokens {
+    position:relative; z-index:1; text-align:center; background:rgba(255,255,255,.16);
+    border-radius:11px; padding:9px 14px; flex-shrink:0;
+  }
+  .v-tok-n { font-size:17px; font-weight:800; }
+  .v-tok-l { font-size:9px; opacity:.85; text-transform:uppercase; letter-spacing:.6px; }
+
+  /* ── Section + details ── */
+  .sec-title {
+    font-size:11px; font-weight:700; color:var(--ink-3); text-transform:uppercase;
+    letter-spacing:1px; margin-bottom:15px; display:flex; align-items:center; gap:9px;
+  }
+  .sec-title::after { content:''; flex:1; height:1px; background:var(--line); }
+  .dgrid { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+  .dkey { font-size:10px; font-weight:700; color:var(--ink-3); text-transform:uppercase; letter-spacing:.7px; }
+  .dval { font-size:14px; font-weight:600; margin-top:3px; }
+  .badge { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:30px; font-size:12px; font-weight:600; }
+  .badge.ok { background:var(--ok-bg); color:var(--ok); }
+  .badge.no { background:var(--bad-bg); color:var(--bad); }
+  .badge .d { width:5px; height:5px; border-radius:50%; background:currentColor; }
+
+  /* ── Doctors ── */
+  .docs { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+  .doc { display:flex; gap:12px; padding:14px; border-radius:12px; border:1.5px solid var(--line); }
+  .doc.yes { border-color:#A7F3D0; background:var(--ok-bg); }
+  .doc.no  { border-color:#FECACA; background:var(--bad-bg); }
+  .doc-av { width:36px; height:36px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; background:#fff; }
+  .doc-role { font-size:10px; font-weight:700; color:var(--ink-3); text-transform:uppercase; letter-spacing:.6px; }
+  .doc-name { font-size:13px; font-weight:600; margin-top:2px; }
+  .doc-stat { font-size:11px; margin-top:3px; font-weight:600; }
+  .doc.yes .doc-stat { color:var(--ok); }
+  .doc.no  .doc-stat { color:var(--bad); }
+
+  /* ── Remarks ── */
+  .rmk { display:flex; gap:11px; padding:12px 14px; border-radius:10px; margin-bottom:8px; font-size:13px; line-height:1.5; }
+  .rmk:last-child { margin-bottom:0; }
+  .rmk.hard { background:var(--bad-bg); border:1px solid #FECACA; }
+  .rmk.soft { background:var(--warn-bg); border:1px solid #FDE68A; }
+  .rmk.info { background:var(--bg); border:1px solid var(--line); }
+  .rmk-code { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px; }
+  .rmk.hard .rmk-code { color:var(--bad); }
+  .rmk.soft .rmk-code { color:var(--warn); }
+  .rmk.info .rmk-code { color:var(--ink-3); }
+  .ok-box { background:var(--ok-bg); border:1px solid #A7F3D0; border-radius:10px; padding:14px; display:flex; gap:9px; align-items:center; font-size:13px; font-weight:600; color:#065F46; }
+
+  /* ── Meta + toast ── */
+  .meta { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-top:4px; flex-wrap:wrap; }
+  .meta-info { font-size:11px; color:var(--ink-3); }
+  .toast {
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%);
+    background:#0F172A; color:#E2E8F0; padding:11px 22px; border-radius:10px;
+    font-size:13px; font-weight:500; z-index:999; box-shadow:0 8px 26px rgba(0,0,0,.3);
+    animation:toastIn .25s ease;
+  }
+  @keyframes toastIn { from{opacity:0;transform:translate(-50%,10px)} to{opacity:1;transform:translate(-50%,0)} }
+  .foot { text-align:center; font-size:11px; color:var(--ink-3); margin-top:8px; }
+
+  @media (max-width:640px) {
+    .grid-2,.dgrid,.docs { grid-template-columns:1fr; }
+    .verdict { flex-wrap:wrap; }
+    .wrap { padding:22px 16px 48px; }
+  }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-logo">🏥</div>
+      <div>
+        <div class="brand-name">MedVerify</div>
+        <div class="brand-sub">Powered by Google Gemini</div>
+      </div>
+    </div>
+    <div class="status-pill loading" id="statusPill" role="button" tabindex="0"
+         title="Checking AI service…" onclick="checkHealth()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();checkHealth()}">
+      <span class="status-dot"></span>
+      <span id="statusText">Checking…</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="page-head">
+      <h1 class="page-title">Verify a Medical Certificate</h1>
+      <p class="page-sub">Upload a candidate's fitness certificate (PDF). Gemini reads the document, including stamps and signatures, and returns a structured verdict.</p>
+    </div>
+
+    <!-- Upload -->
+    <section class="card" id="uploadCard">
+      <div class="card-head">
+        <div class="card-ico">📤</div>
+        <div>
+          <div class="card-title">Upload Certificate</div>
+          <div class="card-desc">PDF only · Max 10MB · First 5 pages analyzed</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="field">
+          <label for="candidateName">Candidate Full Name</label>
+          <input id="candidateName" type="text" maxlength="100" autocomplete="off"
+                 placeholder="e.g. Ayan Panja" oninput="clearErr('nameErr','candidateName')" />
+          <span class="err" id="nameErr" role="alert">Please enter the candidate's full name.</span>
+        </div>
+        <div class="field">
+          <label for="employeeId">Employee / Application ID <span class="opt">(optional)</span></label>
+          <input id="employeeId" type="text" maxlength="50" autocomplete="off" placeholder="e.g. EMP-2026-001" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="fileInput">Medical Certificate PDF</label>
+        <div class="drop" id="drop">
+          <input id="fileInput" type="file" accept=".pdf" aria-label="Upload certificate PDF" onchange="onFile(this)" />
+          <div class="drop-ic" id="dropIc">📄</div>
+          <div class="drop-1" id="drop1">Click to upload or drag &amp; drop</div>
+          <div class="drop-2">PDF only · Max 10MB · First 5 pages analyzed</div>
+          <div class="drop-file" id="dropFile"></div>
+        </div>
+        <span class="err" id="fileErr" role="alert">Please select a PDF file.</span>
+      </div>
+
+      <button class="btn" id="submitBtn" onclick="submitForm()"><span>🔍</span> Verify Document</button>
+    </section>
+
+    <!-- Spinner -->
+    <div id="spinner" aria-live="polite">
+      <div class="card spin-card">
+        <div class="ring"></div>
+        <div>
+          <div class="spin-1">Analyzing certificate with Gemini…</div>
+          <div class="spin-2">Reading text, stamps and signatures. Usually a few seconds.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div id="result" aria-live="polite"></div>
+
+    <p class="foot">MedVerify · AI-assisted screening — final hiring decisions remain with your HR team.</p>
+  </main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const MAX_BYTES = 10 * 1024 * 1024;
+  const drop = $("drop");
+
+  // ── Drag & drop ──
+  drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", e => {
+    e.preventDefault(); drop.classList.remove("over");
+    const f = e.dataTransfer.files[0];
+    if (f) { $("fileInput").files = e.dataTransfer.files; setFile(f); }
+  });
+  function onFile(input) { if (input.files[0]) setFile(input.files[0]); }
+
+  function setFile(file) {
+    drop.classList.add("has");
+    $("dropIc").textContent = "✅";
+    $("drop1").textContent = "File ready";
+    const mb = (file.size / 1024 / 1024).toFixed(2);
+    $("dropFile").textContent = `${file.name} · ${mb} MB`;
+    clearErr("fileErr", null);
+    $("fileErr").textContent = "Please select a PDF file.";
+  }
+
+  function clearErr(errId, inputId) {
+    $(errId).classList.remove("show");
+    if (inputId) $(inputId).classList.remove("bad");
+  }
+  function showErr(errId, inputId) {
+    $(errId).classList.add("show");
+    if (inputId) { $(inputId).classList.add("bad"); $(inputId).focus(); }
+  }
+  function showToast(msg) {
+    const t = document.createElement("div");
+    t.className = "toast"; t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2800);
+  }
+
+  // ── Live health status ──
+  async function initHealth() {
+    const pill = $("statusPill"), txt = $("statusText");
+    try {
+      const res = await fetch("/health");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      pill.classList.remove("offline", "loading");
+      txt.textContent = "AI Online";
+      pill.title = `Model: ${data.model} · first ${data.max_pages} pages scanned`;
+    } catch (e) {
+      pill.classList.remove("loading");
+      pill.classList.add("offline");
+      txt.textContent = "AI Offline";
+      pill.title = "Server unreachable — is uvicorn running?";
+    }
+  }
+  async function checkHealth() {
+    try {
+      const data = await (await fetch("/health")).json();
+      showToast(`✅ Online · model: ${data.model}`);
+    } catch (e) { showToast("❌ Server unreachable. Is uvicorn running?"); }
+    initHealth();
+  }
+  document.addEventListener("DOMContentLoaded", initHealth);
+
+  // ── Submit ──
+  async function submitForm() {
+    const name = $("candidateName").value.trim();
+    const empId = $("employeeId").value.trim();
+    const file = $("fileInput").files[0];
+    let ok = true;
+
+    if (!name) { showErr("nameErr", "candidateName"); ok = false; }
+    if (!file) { showErr("fileErr", null); ok = false; }
+    if (!ok) return;
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      $("fileErr").textContent = "Only PDF files are accepted."; showErr("fileErr", null); return;
+    }
+    if (file.size > MAX_BYTES) {
+      $("fileErr").textContent = "File too large. Maximum size is 10MB."; showErr("fileErr", null); return;
+    }
+
+    const btn = $("submitBtn"), spinner = $("spinner"), result = $("result");
+    const fd = new FormData();
+    fd.append("candidate_name", name);
+    fd.append("file", file);
+    if (empId) fd.append("employee_id", empId);
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="ring" style="width:16px;height:16px;border-width:2px"></span> Verifying…';
+    spinner.style.display = "block";
+    result.style.display = "none"; result.innerHTML = "";
+
+    try {
+      const res = await fetch("/api/v1/verify", { method:"POST", body:fd });
+      const data = await res.json();
+      if (!res.ok) { showError(data.detail || "Something went wrong."); return; }
+      showResult(data, file.name);
+    } catch (e) {
+      showError("Could not connect to the server. Is uvicorn running?");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<span>🔍</span> Verify Document';
+      spinner.style.display = "none";
+    }
+  }
+
+  // ── Verdict config ──
+  const VERDICTS = {
+    APPROVED:               { ic:"✅", text:"Approved — Medically Fit" },
+    APPROVED_WITH_REVIEW:   { ic:"⚠️", text:"Approved — Review Required" },
+    REJECTED:               { ic:"❌", text:"Rejected" },
+    MANUAL_REVIEW_REQUIRED: { ic:"🔍", text:"Manual Review Required" },
+  };
+  const HARD = ["MEDICAL_STATUS_UNFIT","CERTIFICATE_EXPIRED","NAME_MISMATCH","MISSING_PHYSICIAN_STAMP"];
+  const rmkCls = c => HARD.includes(c) ? "hard" : c === "MISSING_OPHTHALMOLOGIST_STAMP" ? "soft" : "info";
+  const rmkIc  = c => HARD.includes(c) ? "🚫" : c === "MISSING_OPHTHALMOLOGIST_STAMP" ? "⚠️" : "💬";
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+  const badge = (v, y, n) => v
+    ? `<span class="badge ok"><span class="d"></span>${y}</span>`
+    : `<span class="badge no"><span class="d"></span>${n}</span>`;
+  function fmtTime(iso) {
+    if (!iso) return "";
+    try { return new Date(iso).toLocaleString("en-IN", { dateStyle:"medium", timeStyle:"short" }); }
+    catch (e) { return iso; }
+  }
+
+  function showError(msg) {
+    const r = $("result");
+    r.innerHTML = `<div class="card"><div class="rmk hard"><div>🚫</div>
+      <div><div class="rmk-code">Error</div><div>${esc(msg)}</div></div></div>
+      <div class="meta"><span></span><button class="btn-ghost" onclick="resetForm()">↩ Try Again</button></div></div>`;
+    r.style.display = "block";
+    r.scrollIntoView({ behavior:"smooth", block:"start" });
+  }
+
+  // ── Render result ──
+  function showResult(data, fname) {
+    const r = data.verification_result;
+    const v = VERDICTS[r.final_decision] || { ic:"❓", text:r.final_decision };
+    const tokens = data.gemini_tokens
+      ? `<div class="v-tokens"><div class="v-tok-n">${data.gemini_tokens.toLocaleString()}</div><div class="v-tok-l">Tokens</div></div>`
+      : "";
+
+    const remarks = r.remarks.length
+      ? r.remarks.map(k => `<div class="rmk ${rmkCls(k.code)}"><div>${rmkIc(k.code)}</div>
+          <div><div class="rmk-code">${esc(k.code.replace(/_/g," "))}</div><div>${esc(k.message)}</div></div></div>`).join("")
+      : `<div class="ok-box">✅ All checks passed — no issues found.</div>`;
+
+    $("result").innerHTML = `
+      <div class="verdict v-${r.final_decision}">
+        <div class="v-ico">${v.ic}</div>
+        <div class="v-info">
+          <div class="v-label">Verification Result</div>
+          <div class="v-text">${esc(v.text)}</div>
+          <div class="v-time">Verified ${esc(fmtTime(r.verified_at))}</div>
+        </div>${tokens}
+      </div>
+
+      <div class="card">
+        <div class="sec-title">Candidate &amp; Certificate</div>
+        <div class="dgrid">
+          <div><div class="dkey">Name on Form</div><div class="dval">${esc(r.candidate_name_on_form) || "—"}</div></div>
+          <div><div class="dkey">Name on Certificate</div><div class="dval">${esc(r.candidate_name_on_document) || "—"}</div></div>
+          <div><div class="dkey">Name Match</div><div class="dval">${badge(r.name_match,"Matched","Mismatch")}</div></div>
+          <div><div class="dkey">Certificate Date</div><div class="dval">${esc(r.certificate_date) || "—"}</div></div>
+          <div><div class="dkey">Date Valid (6 months)</div><div class="dval">${badge(r.certificate_valid,"Valid","Expired / Unreadable")}</div></div>
+          <div><div class="dkey">Medical Status</div><div class="dval">${esc(r.medical_status)}</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-title">Doctors on Certificate</div>
+        <div class="docs">
+          <div class="doc ${r.doctor_present?'yes':'no'}"><div class="doc-av">👨‍⚕️</div>
+            <div><div class="doc-role">General Physician</div><div class="doc-name">${esc(r.doctor_name) || "Not Found"}</div>
+            <div class="doc-stat">${r.doctor_present?"✓ Detected":"✗ Not Detected"}</div></div></div>
+          <div class="doc ${r.ophthalmologist_present?'yes':'no'}"><div class="doc-av">👁️</div>
+            <div><div class="doc-role">Ophthalmologist</div><div class="doc-name">${esc(r.ophthalmologist_name) || "Not Found"}</div>
+            <div class="doc-stat">${r.ophthalmologist_present?"✓ Detected":"✗ Not Detected"}</div></div></div>
+        </div>
+      </div>
+
+      <div class="card"><div class="sec-title">Remarks &amp; Flags</div>${remarks}</div>
+
+      <div class="meta">
+        <span class="meta-info">📄 ${esc(fname || data.filename)}${data.employee_id?" · 👤 "+esc(data.employee_id):""} · ${esc(data.request_id)}</span>
+        <button class="btn-ghost" onclick="resetForm()">↩ Verify Another</button>
+      </div>`;
+    $("result").style.display = "block";
+    requestAnimationFrame(() => $("result").scrollIntoView({ behavior:"smooth", block:"start" }));
+  }
+
+  function resetForm() {
+    $("candidateName").value = "";
+    $("employeeId").value = "";
+    $("fileInput").value = "";
+    $("dropFile").textContent = "";
+    drop.classList.remove("has");
+    $("dropIc").textContent = "📄";
+    $("drop1").textContent = "Click to upload or drag & drop";
+    $("result").style.display = "none";
+    $("result").innerHTML = "";
+    clearErr("nameErr", "candidateName");
+    clearErr("fileErr", null);
+    $("candidateName").focus();
+    window.scrollTo({ top:0, behavior:"smooth" });
+  }
+</script>
+</body>
+</html>
