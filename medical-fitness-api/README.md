@@ -29,16 +29,6 @@ uvicorn main:app --reload
 
 Open http://127.0.0.1:8000 in your browser.
 
-## Run with Docker
-
-```bash
-docker build -t medverify .
-docker run -p 8000:8000 --env-file .env medverify
-```
-
-Your `.env` (with `GEMINI_API_KEY`) is passed in at runtime, so the key is never
-built into the image. Then open http://127.0.0.1:8000.
-
 ## Project structure
 
 ```
