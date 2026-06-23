@@ -12,11 +12,12 @@ import os
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from app import config
 from app.schemas import VerificationResponse, VerificationResult
+from app.security import require_api_key
 from app.services.audit import utcnow_iso, write_audit_log
 from app.services.gemini import analyze_with_gemini
 from app.services.pdf import build_pdf_for_vision
@@ -49,7 +50,11 @@ def health_check():
     }
 
 
-@router.post("/api/v1/verify", response_model=VerificationResponse)
+@router.post(
+    "/api/v1/verify",
+    response_model=VerificationResponse,
+    dependencies=[Depends(require_api_key)],
+)
 async def verify_medical_certificate(
     # Sent in the form body (not the URL) so personal data stays out of logs.
     candidate_name: str = Form(..., min_length=2, max_length=100),
@@ -84,14 +89,15 @@ async def verify_medical_certificate(
     # 3) Run our business rules on what Gemini returned.
     certificate_valid = is_certificate_valid(ai_data.get("certificate_date", ""))
     name_matched = names_match(candidate_name, ai_data.get("candidate_name_on_document", ""))
-    normalized_status = normalize_medical_status(ai_data.get("medical_status", ""))
-    final_decision, remarks = build_decision(
+    certificate_status = normalize_medical_status(ai_data.get("certificate_status", ""))
+    pef_status = normalize_medical_status(ai_data.get("pef_status", ""))
+    final_decision, remarks, medical_status = build_decision(
         ai_data=ai_data,
         candidate_name_on_form=candidate_name,
         certificate_valid=certificate_valid,
         name_matched=name_matched,
     )
-    logger.info(f"[{request_id}] Decision: {final_decision}")
+    logger.info(f"[{request_id}] Decision: {final_decision} (status: {medical_status})")
 
     # 4) Save an audit record (in a thread so file I/O does not block).
     await asyncio.to_thread(write_audit_log, {
@@ -101,7 +107,9 @@ async def verify_medical_certificate(
         "employee_id": employee_id,
         "filename": filename,
         "final_decision": final_decision,
-        "medical_status": normalized_status,
+        "medical_status": medical_status,
+        "certificate_status": certificate_status,
+        "pef_status": pef_status,
         "name_match": name_matched,
         "certificate_valid": certificate_valid,
         "doctor_present": bool(ai_data.get("doctor_present")),
@@ -126,7 +134,9 @@ async def verify_medical_certificate(
             certificate_valid=certificate_valid,
             doctor_present=bool(ai_data.get("doctor_present", False)),
             ophthalmologist_present=bool(ai_data.get("ophthalmologist_present", False)),
-            medical_status=normalized_status,
+            certificate_status=certificate_status,
+            pef_status=pef_status,
+            medical_status=medical_status,
             final_decision=final_decision,
             remarks=remarks,
             verified_at=verified_at,

@@ -26,6 +26,20 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_MAX_OUTPUT_TOKENS = int(os.environ.get("GEMINI_MAX_OUTPUT_TOKENS", 1024))
 GEMINI_THINKING_BUDGET = int(os.environ.get("GEMINI_THINKING_BUDGET", 0))
+GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", 60))
+
+# --- API access ---
+# If API_KEY is set, callers must send it as an "X-API-Key" header.
+# Leave it empty to keep the API open (handy for local development).
+API_KEY = os.environ.get("API_KEY", "")
+# Comma-separated list of browser origins allowed by CORS.
+CORS_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        "CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000"
+    ).split(",")
+    if o.strip()
+]
 
 # --- File locations ---
 AUDIT_LOG_FILE = str(BASE_DIR / "audit.log")

@@ -6,6 +6,7 @@ Run with: uvicorn main:app --reload
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import config
 from app.routes.verification import router
 
 app = FastAPI(
@@ -14,10 +15,10 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allow the local web UI to call the API. Tighten these origins in production.
+# Allow the web UI to call the API. Origins come from CORS_ORIGINS in .env.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=config.CORS_ORIGINS,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

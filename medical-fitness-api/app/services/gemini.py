@@ -17,6 +17,7 @@ from app.config import (
     GEMINI_MAX_OUTPUT_TOKENS,
     GEMINI_MODEL,
     GEMINI_THINKING_BUDGET,
+    GEMINI_TIMEOUT_SECONDS,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,11 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = genai.Client(api_key=GEMINI_API_KEY)
+        # http timeout (ms) so a hung Gemini request can't block forever.
+        _client = genai.Client(
+            api_key=GEMINI_API_KEY,
+            http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_SECONDS * 1000),
+        )
     return _client
 
 
@@ -40,30 +45,39 @@ def _get_client():
 # (in analyze_with_gemini) so this stays a plain, easy-to-read string.
 PROMPT = """You are a Medical Fitness Certificate Verification System.
 
-Carefully examine the attached medical certificate document (it may be scanned
-images). Read the printed text AND look closely at stamps, round seals,
-signatures and handwriting - important details are often inside stamps.
+You are given a candidate's medical document (often scanned images, up to a few
+pages). It usually contains TWO parts you must check SEPARATELY:
+  A) the Fitness Certificate - often a "TO WHOMSOEVER IT MAY CONCERN" letter
+  B) the Pre-Employment Form (PEF) - a detailed medical examination report
 
-RULES:
+Read the printed text AND look closely at stamps, seals, signatures and
+handwriting across ALL pages. Important details are often inside stamps or on
+later pages (the certificate and the PEF can be on different pages).
+
+Fields to return:
 
 1. certificate_date: the MAIN certificate date only. Ignore blood test / lab /
-   sample collection dates. Look near "TO WHOMSOEVER IT MAY CONCERN", the
-   doctor's signature, or "Date:".
+   sample collection dates.
 
-2. medical_status must be EXACTLY one of: FIT | UNFIT | FIT_WITH_RECOMMENDATION
+2. certificate_status: the fitness verdict on the Fitness Certificate (A).
+   EXACTLY one of: FIT | UNFIT | FIT_WITH_RECOMMENDATION | NOT_FOUND
 
-3. doctor_present: true if a General Physician / MBBS / MD signature or stamp
-   is visible. doctor_name: that doctor's full name, or "" if not found.
+3. pef_status: the fitness verdict / conclusion on the Pre-Employment Form or
+   medical examination (B). EXACTLY one of:
+   FIT | UNFIT | FIT_WITH_RECOMMENDATION | NOT_FOUND
+   Use NOT_FOUND if there is no separate examination form.
 
-4. ophthalmologist_present / ophthalmologist_name: look for a SECOND doctor
-   anywhere (including inside stamps/seals) - an eye specialist, an "Eye
-   Fitness" / "Vision Test" section, a second stamp, or any eye examination
-   signed by a doctor. Set true if any such second doctor or section exists.
+4. doctor_present / doctor_name: true and the name if a General Physician
+   (MBBS/MD) signature or stamp is visible.
 
-5. candidate_name_on_document: the exact name printed on the certificate.
+5. ophthalmologist_present / ophthalmologist_name: look for a SECOND doctor or
+   eye test anywhere (eye specialist, "Eye Fitness" / "Vision Test", a second
+   stamp). true if any such second doctor or section exists.
 
-6. remarks: only real medical findings or notes. Do NOT invent remarks and do
-   NOT add remarks about missing stamps.
+6. candidate_name_on_document: the exact name printed on the document.
+
+7. remarks: only real medical findings or notes (defects, conditions, advice).
+   Do NOT invent remarks and do NOT add remarks about missing stamps.
 
 Return ONLY this JSON, no markdown:
 {
@@ -71,7 +85,8 @@ Return ONLY this JSON, no markdown:
     "doctor_name": "",
     "ophthalmologist_name": "",
     "certificate_date": "",
-    "medical_status": "",
+    "certificate_status": "",
+    "pef_status": "",
     "doctor_present": true,
     "ophthalmologist_present": true,
     "remarks": []
@@ -85,7 +100,7 @@ def _call_gemini(pdf_bytes: bytes, prompt: str) -> tuple[str, int]:
     returns (response_text, total_tokens). Meant to be run inside a thread.
     """
     pdf_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
-    response = client.models.generate_content(
+    response = _get_client().models.generate_content(
         model=GEMINI_MODEL,
         contents=[prompt, pdf_part],
         config=types.GenerateContentConfig(
@@ -116,11 +131,16 @@ async def analyze_with_gemini(pdf_bytes: bytes, candidate_name_on_form: str) -> 
     try:
         raw, tokens = await asyncio.to_thread(_call_gemini, pdf_bytes, prompt)
     except genai_errors.APIError as e:
-        logger.error(f"Gemini API error: {e}")
-        raise HTTPException(status_code=503, detail="The AI service returned an error. Please try again shortly.")
+        code = getattr(e, "code", None)
+        logger.error(f"Gemini API error ({code}): {e}")
+        if code == 429:
+            raise HTTPException(status_code=429, detail="AI rate limit or quota exceeded. Wait a moment and try again, or check your Gemini plan.")
+        if code in (401, 403):
+            raise HTTPException(status_code=502, detail="AI authentication failed. Check the server's GEMINI_API_KEY.")
+        raise HTTPException(status_code=502, detail="The AI service returned an error. Please try again shortly.")
     except Exception as e:
         logger.error(f"Gemini call failed: {e}")
-        raise HTTPException(status_code=503, detail="Could not reach the AI service. Please try again shortly.")
+        raise HTTPException(status_code=504, detail="The AI service timed out or was unreachable. Please try again.")
 
     # Gemini returns JSON text; pull out the {...} part and parse it.
     try:

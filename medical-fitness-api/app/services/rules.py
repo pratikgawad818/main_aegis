@@ -82,6 +82,26 @@ def normalize_medical_status(raw: str) -> str:
     return "UNKNOWN"
 
 
+def combine_statuses(certificate_status, pef_status):
+    """
+    Combine the certificate verdict and the pre-employment-form (PEF) verdict
+    into one effective status, and flag a conflict if they disagree
+    (e.g. the certificate says FIT but the PEF says UNFIT).
+
+    Returns (effective_status, conflict). The stricter verdict wins:
+    UNFIT > FIT_WITH_RECOMMENDATION > FIT.
+    """
+    cert = normalize_medical_status(certificate_status)
+    pef = normalize_medical_status(pef_status)
+    known = [s for s in (cert, pef) if s in VALID_STATUSES]
+    if not known:
+        return "UNKNOWN", False
+    order = {"FIT": 1, "FIT_WITH_RECOMMENDATION": 2, "UNFIT": 3}
+    effective = max(known, key=lambda s: order[s])
+    conflict = "UNFIT" in known and any(s in ("FIT", "FIT_WITH_RECOMMENDATION") for s in known)
+    return effective, conflict
+
+
 # Problems that cause an automatic REJECTED decision.
 HARD_FAILURES = {
     "MEDICAL_STATUS_UNFIT",
@@ -93,18 +113,32 @@ HARD_FAILURES = {
 
 def build_decision(ai_data, candidate_name_on_form, certificate_valid, name_matched):
     """
-    Apply the business rules and return (final_decision, remarks).
+    Apply the business rules and return (final_decision, remarks, medical_status).
 
-    Each failed check adds a Remark. If any "hard failure" is present the
-    candidate is REJECTED; otherwise the AI status decides the outcome.
+    The certificate verdict and the pre-employment-form verdict are combined.
+    Each failed check adds a Remark. A "hard failure" means REJECTED; a
+    disagreement between the two verdicts means MANUAL_REVIEW_REQUIRED.
     """
     remarks = []
-    status = normalize_medical_status(ai_data.get("medical_status", ""))
 
-    if status == "UNFIT":
+    # Combine the certificate verdict with the pre-employment-form verdict.
+    cert_status = ai_data.get("certificate_status") or ai_data.get("medical_status", "")
+    pef_status = ai_data.get("pef_status", "")
+    status, conflict = combine_statuses(cert_status, pef_status)
+
+    if conflict:
+        remarks.append(Remark(
+            code="STATUS_CONFLICT",
+            message=(
+                f"Certificate says {normalize_medical_status(cert_status)} but the "
+                f"pre-employment form says {normalize_medical_status(pef_status)} - "
+                f"the two disagree and need manual review."
+            ),
+        ))
+    elif status == "UNFIT":
         remarks.append(Remark(
             code="MEDICAL_STATUS_UNFIT",
-            message="The certificate states the candidate is medically UNFIT.",
+            message="The document states the candidate is medically UNFIT.",
         ))
 
     if not certificate_valid:
@@ -148,6 +182,8 @@ def build_decision(ai_data, candidate_name_on_form, certificate_valid, name_matc
     failed_codes = {r.code for r in remarks}
     if failed_codes & HARD_FAILURES:
         final_decision = "REJECTED"
+    elif conflict:
+        final_decision = "MANUAL_REVIEW_REQUIRED"
     elif status == "FIT_WITH_RECOMMENDATION":
         final_decision = "APPROVED_WITH_REVIEW"
     elif status == "FIT":
@@ -155,4 +191,4 @@ def build_decision(ai_data, candidate_name_on_form, certificate_valid, name_matc
     else:
         final_decision = "MANUAL_REVIEW_REQUIRED"
 
-    return final_decision, remarks
+    return final_decision, remarks, status
