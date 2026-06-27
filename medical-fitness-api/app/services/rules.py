@@ -110,6 +110,13 @@ HARD_FAILURES = {
     "MISSING_PHYSICIAN_STAMP",
 }
 
+# Problems that need a human to look - not auto-approved, not auto-rejected.
+REVIEW_FLAGS = {
+    "STATUS_CONFLICT",
+    "MISSING_CANDIDATE_PHOTO",
+    "PHOTO_NOT_STAMPED",
+}
+
 
 def build_decision(ai_data, candidate_name_on_form, certificate_valid, name_matched):
     """
@@ -170,6 +177,18 @@ def build_decision(ai_data, candidate_name_on_form, certificate_valid, name_matc
             message="Ophthalmologist stamp not detected. Please verify manually.",
         ))
 
+    # The pre-employment form should carry the candidate's photo, stamped by the doctor.
+    if not ai_data.get("candidate_photo_present", False):
+        remarks.append(Remark(
+            code="MISSING_CANDIDATE_PHOTO",
+            message="No candidate photograph found on the pre-employment form.",
+        ))
+    elif not ai_data.get("photo_stamped", False):
+        remarks.append(Remark(
+            code="PHOTO_NOT_STAMPED",
+            message="The candidate's photograph is not stamped by the doctor.",
+        ))
+
     # Copy across any medical notes Gemini extracted.
     ai_remarks = ai_data.get("remarks", [])
     if not isinstance(ai_remarks, list):
@@ -182,7 +201,7 @@ def build_decision(ai_data, candidate_name_on_form, certificate_valid, name_matc
     failed_codes = {r.code for r in remarks}
     if failed_codes & HARD_FAILURES:
         final_decision = "REJECTED"
-    elif conflict:
+    elif failed_codes & REVIEW_FLAGS:
         final_decision = "MANUAL_REVIEW_REQUIRED"
     elif status == "FIT_WITH_RECOMMENDATION":
         final_decision = "APPROVED_WITH_REVIEW"

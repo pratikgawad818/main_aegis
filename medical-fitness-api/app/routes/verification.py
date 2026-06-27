@@ -114,6 +114,8 @@ async def verify_medical_certificate(
         "certificate_valid": certificate_valid,
         "doctor_present": bool(ai_data.get("doctor_present")),
         "ophtha_present": bool(ai_data.get("ophthalmologist_present")),
+        "photo_present": bool(ai_data.get("candidate_photo_present")),
+        "photo_stamped": bool(ai_data.get("photo_stamped")),
         "gemini_tokens": gemini_tokens,
         "remarks": [r.code for r in remarks],
     })
@@ -134,6 +136,8 @@ async def verify_medical_certificate(
             certificate_valid=certificate_valid,
             doctor_present=bool(ai_data.get("doctor_present", False)),
             ophthalmologist_present=bool(ai_data.get("ophthalmologist_present", False)),
+            candidate_photo_present=bool(ai_data.get("candidate_photo_present", False)),
+            photo_stamped=bool(ai_data.get("photo_stamped", False)),
             certificate_status=certificate_status,
             pef_status=pef_status,
             medical_status=medical_status,

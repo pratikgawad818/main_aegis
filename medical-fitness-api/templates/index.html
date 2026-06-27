@@ -471,7 +471,9 @@
           <div><div class="dkey">Name Match</div><div class="dval">${badge(r.name_match,"Matched","Mismatch")}</div></div>
           <div><div class="dkey">Certificate Date</div><div class="dval">${esc(r.certificate_date) || "—"}</div></div>
           <div><div class="dkey">Date Valid (6 months)</div><div class="dval">${badge(r.certificate_valid,"Valid","Expired / Unreadable")}</div></div>
-          <div><div class="dkey">Medical Status</div><div class="dval">${esc(r.medical_status)}</div></div>
+          <div><div class="dkey">Certificate Verdict</div><div class="dval">${esc(r.certificate_status) || "—"}</div></div>
+          <div><div class="dkey">PEF Verdict</div><div class="dval">${esc(r.pef_status) || "—"}</div></div>
+          <div><div class="dkey">Overall Status</div><div class="dval">${esc(r.medical_status)}</div></div>
         </div>
       </div>
 
@@ -484,6 +486,18 @@
           <div class="doc ${r.ophthalmologist_present?'yes':'no'}"><div class="doc-av">👁️</div>
             <div><div class="doc-role">Ophthalmologist</div><div class="doc-name">${esc(r.ophthalmologist_name) || "Not Found"}</div>
             <div class="doc-stat">${r.ophthalmologist_present?"✓ Detected":"✗ Not Detected"}</div></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="sec-title">Pre-Employment Form</div>
+        <div class="docs">
+          <div class="doc ${r.candidate_photo_present?'yes':'no'}"><div class="doc-av">🖼️</div>
+            <div><div class="doc-role">Candidate Photo</div><div class="doc-name">${r.candidate_photo_present?"Present":"Not Found"}</div>
+            <div class="doc-stat">${r.candidate_photo_present?"✓ On the form":"✗ Missing"}</div></div></div>
+          <div class="doc ${r.photo_stamped?'yes':'no'}"><div class="doc-av">🔏</div>
+            <div><div class="doc-role">Doctor's Stamp on Photo</div><div class="doc-name">${r.photo_stamped?"Stamped":"Not Stamped"}</div>
+            <div class="doc-stat">${r.photo_stamped?"✓ Verified":"✗ Verify manually"}</div></div></div>
         </div>
       </div>
 

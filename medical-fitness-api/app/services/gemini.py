@@ -76,7 +76,14 @@ Fields to return:
 
 6. candidate_name_on_document: the exact name printed on the document.
 
-7. remarks: only real medical findings or notes (defects, conditions, advice).
+7. candidate_photo_present: true if a passport-style PHOTOGRAPH of the candidate
+   appears on the document (usually pasted on the Pre-Employment Form).
+
+8. photo_stamped: true ONLY if a doctor's stamp or seal is placed ON / across
+   that photograph (the stamp overlaps the photo - a common anti-fraud measure).
+   false if the photo has no stamp on it, or if there is no photo.
+
+9. remarks: only real medical findings or notes (defects, conditions, advice).
    Do NOT invent remarks and do NOT add remarks about missing stamps.
 
 Return ONLY this JSON, no markdown:
@@ -89,6 +96,8 @@ Return ONLY this JSON, no markdown:
     "pef_status": "",
     "doctor_present": true,
     "ophthalmologist_present": true,
+    "candidate_photo_present": true,
+    "photo_stamped": true,
     "remarks": []
 }
 """

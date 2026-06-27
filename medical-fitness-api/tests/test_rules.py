@@ -11,12 +11,14 @@ from app.services.rules import (
 )
 
 
-def _decide(cert, pef, doctor=True, ophth=True):
+def _decide(cert, pef, doctor=True, ophth=True, photo=True, photo_stamped=True):
     ai = {
         "certificate_status": cert,
         "pef_status": pef,
         "doctor_present": doctor,
         "ophthalmologist_present": ophth,
+        "candidate_photo_present": photo,
+        "photo_stamped": photo_stamped,
         "candidate_name_on_document": "Ravi Kumar",
         "remarks": [],
     }
@@ -75,3 +77,15 @@ def test_certificate_validity():
     assert is_certificate_valid(old) is False
     assert is_certificate_valid(future) is False
     assert is_certificate_valid("garbage") is False
+
+
+def test_missing_candidate_photo_needs_review():
+    decision, status, codes = _decide("FIT", "FIT", photo=False)
+    assert decision == "MANUAL_REVIEW_REQUIRED"
+    assert "MISSING_CANDIDATE_PHOTO" in codes
+
+
+def test_photo_present_but_not_stamped_needs_review():
+    decision, status, codes = _decide("FIT", "FIT", photo_stamped=False)
+    assert decision == "MANUAL_REVIEW_REQUIRED"
+    assert "PHOTO_NOT_STAMPED" in codes

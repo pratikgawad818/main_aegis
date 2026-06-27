@@ -22,6 +22,8 @@ class VerificationResult(BaseModel):
     certificate_valid: bool
     doctor_present: bool
     ophthalmologist_present: bool
+    candidate_photo_present: bool = False
+    photo_stamped: bool = False
     certificate_status: Optional[str] = None
     pef_status: Optional[str] = None
     medical_status: str
