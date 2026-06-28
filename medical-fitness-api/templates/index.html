@@ -369,6 +369,13 @@
   }
   document.addEventListener("DOMContentLoaded", initHealth);
 
+  // Send the verify request, attaching the saved API key (if any) as a header.
+  function sendVerify(fd) {
+    const key = localStorage.getItem("medverify_key") || "";
+    const headers = key ? { "X-API-Key": key } : {};
+    return fetch("/api/v1/verify", { method: "POST", body: fd, headers });
+  }
+
   // ── Submit ──
   async function submitForm() {
     const name = $("candidateName").value.trim();
@@ -398,7 +405,12 @@
     result.style.display = "none"; result.innerHTML = "";
 
     try {
-      const res = await fetch("/api/v1/verify", { method:"POST", body:fd });
+      let res = await sendVerify(fd);
+      // If the server requires an API key, ask for it once and retry.
+      if (res.status === 401) {
+        const key = prompt("This server needs an API key. Paste your X-API-Key:");
+        if (key) { localStorage.setItem("medverify_key", key.trim()); res = await sendVerify(fd); }
+      }
       const data = await res.json();
       if (!res.ok) { showError(data.detail || "Something went wrong."); return; }
       showResult(data, file.name);
