@@ -1,0 +1,4 @@
+# Extra dependencies for the Gmail worker (the API itself doesn't need these).
+# Install with:  pip install -r integrations/requirements.txt
+requests>=2.31.0
+python-dotenv>=1.0.0

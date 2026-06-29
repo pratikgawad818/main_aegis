@@ -1,1 +1,1 @@
-"""MedVerify application package."""
+"""Aegis application package."""

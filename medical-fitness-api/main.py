@@ -1,4 +1,4 @@
-"""MedVerify entry point: create the app, add CORS, include the routes.
+"""Aegis entry point: create the app, add CORS, include the routes.
 
 Run with: uvicorn main:app --reload
 """
@@ -10,7 +10,7 @@ from app import config
 from app.routes.verification import router
 
 app = FastAPI(
-    title="Medical Fitness Verification API",
+    title="Aegis - Medical Fitness Verification API",
     description="AI-powered medical certificate verification for HR teams.",
     version="1.0.0",
 )

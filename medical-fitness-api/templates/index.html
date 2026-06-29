@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="MedVerify — AI medical fitness certificate verification" />
-<title>MedVerify — Medical Fitness Verification</title>
+<meta name="description" content="Aegis — AI medical fitness certificate verification" />
+<title>Aegis — Medical Fitness Verification</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏥</text></svg>" />
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -231,7 +231,7 @@
     <div class="brand">
       <div class="brand-logo">🏥</div>
       <div>
-        <div class="brand-name">MedVerify</div>
+        <div class="brand-name">Aegis</div>
         <div class="brand-sub">Powered by Google Gemini</div>
       </div>
     </div>
@@ -300,7 +300,7 @@
     <!-- Result -->
     <div id="result" aria-live="polite"></div>
 
-    <p class="foot">MedVerify · AI-assisted screening — final hiring decisions remain with your HR team.</p>
+    <p class="foot">Aegis · AI-assisted screening — final hiring decisions remain with your HR team.</p>
   </main>
 
 <script>
@@ -371,7 +371,7 @@
 
   // Send the verify request, attaching the saved API key (if any) as a header.
   function sendVerify(fd) {
-    const key = localStorage.getItem("medverify_key") || "";
+    const key = localStorage.getItem("aegis_key") || "";
     const headers = key ? { "X-API-Key": key } : {};
     return fetch("/api/v1/verify", { method: "POST", body: fd, headers });
   }
@@ -409,7 +409,7 @@
       // If the server requires an API key, ask for it once and retry.
       if (res.status === 401) {
         const key = prompt("This server needs an API key. Paste your X-API-Key:");
-        if (key) { localStorage.setItem("medverify_key", key.trim()); res = await sendVerify(fd); }
+        if (key) { localStorage.setItem("aegis_key", key.trim()); res = await sendVerify(fd); }
       }
       const data = await res.json();
       if (!res.ok) { showError(data.detail || "Something went wrong."); return; }
