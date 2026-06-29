@@ -6,7 +6,7 @@ visually so it can pick up stamps and signatures even on scanned pages.
 
 Built with **FastAPI (Python)** and **Google Gemini**.
 
-> The project lives in the [`medical-fitness-api/`](medical-fitness-api/) folder - run the commands below from there.
+> The project lives in the [`aegis-certificate-verification/`](aegis-certificate-verification/) folder - run the commands below from there.
 
 ## What it checks
 
@@ -25,7 +25,7 @@ Built with **FastAPI (Python)** and **Google Gemini**.
 ## Setup
 
 ```bash
-cd medical-fitness-api
+cd aegis-certificate-verification
 python -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
@@ -38,7 +38,7 @@ Open http://127.0.0.1:8000 in your browser.
 ## Project structure
 
 ```
-medical-fitness-api/
+aegis-certificate-verification/
 ├── main.py                  # starts the app, adds CORS, includes routes
 ├── app/
 │   ├── config.py            # all settings (read from .env)
@@ -149,7 +149,7 @@ Set `ALLOWED_SENDERS` so only trusted senders can get medical results back.
 ## Tests
 
 ```bash
-cd medical-fitness-api
+cd aegis-certificate-verification
 pip install -r requirements-dev.txt
 pytest
 ```

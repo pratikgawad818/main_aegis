@@ -1,4 +1,4 @@
 # Keep GitHub's language stats focused on the Python backend.
 # The UI template bundles HTML+CSS+JS in one large file, which would
 # otherwise make GitHub label the whole repo as "HTML".
-medical-fitness-api/templates/*.html linguist-detectable=false
+aegis-certificate-verification/templates/*.html linguist-detectable=false
