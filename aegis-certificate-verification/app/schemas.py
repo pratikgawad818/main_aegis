@@ -36,6 +36,5 @@ class VerificationResponse(BaseModel):
     """The full response returned by the verify endpoint."""
     request_id: str
     filename: str
-    employee_id: Optional[str] = None
     gemini_tokens: Optional[int] = None
     verification_result: VerificationResult

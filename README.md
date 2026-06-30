@@ -72,7 +72,6 @@ aegis-certificate-verification/
 | Field | Required | Description |
 |---|---|---|
 | `candidate_name` | yes | Full name from the application form |
-| `employee_id` | no | Your internal ID for the candidate |
 | `file` | yes | The certificate PDF |
 
 `GET /health` - status and the configured model.

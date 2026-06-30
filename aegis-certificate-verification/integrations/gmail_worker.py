@@ -114,8 +114,108 @@ def format_result(data: dict) -> str:
     )
 
 
-def send_reply(to_addr, subject, body, in_reply_to=None):
-    """Send a plain-text reply via Gmail SMTP."""
+# Colour and friendly label for each final decision.
+DECISION_STYLES = {
+    "APPROVED":               ("#16a34a", "Approved"),
+    "APPROVED_WITH_REVIEW":   ("#d97706", "Approved with Review"),
+    "REJECTED":               ("#dc2626", "Rejected"),
+    "MANUAL_REVIEW_REQUIRED": ("#4f46e5", "Manual Review Required"),
+}
+
+
+def _yes_no(value) -> str:
+    """Render a boolean as a friendly Yes / No."""
+    return "Yes" if value else "No"
+
+
+def format_html(data: dict) -> str:
+    """Build a polished, color-coded HTML version of the result email."""
+    r = data.get("verification_result", {})
+    decision = r.get("final_decision", "UNKNOWN")
+    color, label = DECISION_STYLES.get(decision, ("#475569", decision.replace("_", " ").title()))
+
+    # Detail rows shown in the table: (label, value).
+    rows = [
+        ("Candidate", r.get("candidate_name_on_document") or "-"),
+        ("Medical status", r.get("medical_status") or "-"),
+        ("Certificate verdict", r.get("certificate_status") or "-"),
+        ("Pre-employment form", r.get("pef_status") or "-"),
+        ("Name match", _yes_no(r.get("name_match"))),
+        ("Certificate date", r.get("certificate_date") or "-"),
+        ("Certificate valid", _yes_no(r.get("certificate_valid"))),
+        ("Doctor stamp", _yes_no(r.get("doctor_present"))),
+        ("Ophthalmologist stamp", _yes_no(r.get("ophthalmologist_present"))),
+        ("Photo on form", _yes_no(r.get("candidate_photo_present"))),
+        ("Photo stamped", _yes_no(r.get("photo_stamped"))),
+    ]
+    row_html = ""
+    for i, (k, v) in enumerate(rows):
+        bg = "#f8fafc" if i % 2 == 0 else "#ffffff"
+        row_html += (
+            f'<tr style="background:{bg};">'
+            f'<td style="padding:10px 16px;color:#64748b;font-size:14px;">{k}</td>'
+            f'<td style="padding:10px 16px;color:#0f172a;font-size:14px;font-weight:600;text-align:right;">{v}</td>'
+            f'</tr>'
+        )
+
+    # Notes / flags list (or an all-clear line).
+    remarks = r.get("remarks", [])
+    if remarks:
+        items = "".join(
+            f'<li style="margin:6px 0;color:#334155;font-size:14px;">{x.get("message", "")}</li>'
+            for x in remarks
+        )
+        flags_html = (
+            '<p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#475569;'
+            'text-transform:uppercase;letter-spacing:0.5px;">Notes &amp; flags</p>'
+            f'<ul style="margin:0;padding-left:20px;">{items}</ul>'
+        )
+    else:
+        flags_html = '<p style="margin:0;color:#16a34a;font-size:14px;">No issues detected.</p>'
+
+    request_id = data.get("request_id", "-")
+
+    return f"""\
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+        <!-- Header -->
+        <tr><td style="background:#1d4ed8;padding:20px 24px;">
+          <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.5px;">Aegis</span>
+          <span style="color:#bfdbfe;font-size:13px;">&nbsp; Certificate Verification</span>
+        </td></tr>
+        <!-- Verdict banner -->
+        <tr><td style="background:{color};padding:22px 24px;text-align:center;">
+          <div style="color:#ffffff;font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.85;">Final Decision</div>
+          <div style="color:#ffffff;font-size:24px;font-weight:700;margin-top:4px;">{label}</div>
+        </td></tr>
+        <!-- Details table -->
+        <tr><td style="padding:8px 8px 0;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+            {row_html}
+          </table>
+        </td></tr>
+        <!-- Notes / flags -->
+        <tr><td style="padding:16px 24px;">{flags_html}</td></tr>
+        <!-- Footer -->
+        <tr><td style="padding:16px 24px;border-top:1px solid #e2e8f0;">
+          <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.5;">
+            Automated screening &mdash; the final decision rests with HR.<br>
+            Request ID: {request_id}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
+def send_reply(to_addr, subject, body, in_reply_to=None, html=None):
+    """Send a reply via Gmail SMTP: plain text, plus an optional HTML version."""
     msg = EmailMessage()
     msg["From"] = GMAIL_ADDRESS
     msg["To"] = to_addr
@@ -124,6 +224,8 @@ def send_reply(to_addr, subject, body, in_reply_to=None):
         msg["In-Reply-To"] = in_reply_to
         msg["References"] = in_reply_to
     msg.set_content(body)
+    if html:
+        msg.add_alternative(html, subtype="html")
     with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as smtp:
         smtp.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
         smtp.send_message(msg)
@@ -148,13 +250,15 @@ def handle_message(msg):
     name = get_candidate_name(msg) or "Unknown"
     filename, pdf_bytes = attachment
     logger.info(f"Verifying '{name}' from {from_addr} ({filename})")
+    html = None
     try:
         data = verify_pdf(name, filename, pdf_bytes)
-        body = format_result(data)
+        body = format_result(data)   # plain-text fallback
+        html = format_html(data)     # polished HTML version
     except Exception as e:
         logger.error(f"Verification failed: {e}")
         body = f"Sorry, verification could not be completed: {e}"
-    send_reply(from_addr, f"Re: {subject}", body, msg_id)
+    send_reply(from_addr, f"Re: {subject}", body, msg_id, html=html)
     logger.info(f"Replied to {from_addr}")
 
 

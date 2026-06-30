@@ -10,7 +10,6 @@ import asyncio
 import logging
 import os
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -58,7 +57,6 @@ def health_check():
 async def verify_medical_certificate(
     # Sent in the form body (not the URL) so personal data stays out of logs.
     candidate_name: str = Form(..., min_length=2, max_length=100),
-    employee_id: Optional[str] = Form(None, max_length=50),
     file: UploadFile = File(...),
 ):
     """Verify a candidate's medical fitness certificate from a PDF upload."""
@@ -104,7 +102,6 @@ async def verify_medical_certificate(
         "timestamp": verified_at,
         "request_id": request_id,
         "candidate_name": candidate_name,
-        "employee_id": employee_id,
         "filename": filename,
         "final_decision": final_decision,
         "medical_status": medical_status,
@@ -124,7 +121,6 @@ async def verify_medical_certificate(
     return VerificationResponse(
         request_id=request_id,
         filename=filename,
-        employee_id=employee_id,
         gemini_tokens=gemini_tokens,
         verification_result=VerificationResult(
             candidate_name_on_form=candidate_name,

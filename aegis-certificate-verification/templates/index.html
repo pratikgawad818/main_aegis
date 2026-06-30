@@ -258,17 +258,11 @@
         </div>
       </div>
 
-      <div class="grid-2">
-        <div class="field">
-          <label for="candidateName">Candidate Full Name</label>
-          <input id="candidateName" type="text" maxlength="100" autocomplete="off"
-                 placeholder="e.g. Ayan Panja" oninput="clearErr('nameErr','candidateName')" />
-          <span class="err" id="nameErr" role="alert">Please enter the candidate's full name.</span>
-        </div>
-        <div class="field">
-          <label for="employeeId">Employee / Application ID <span class="opt">(optional)</span></label>
-          <input id="employeeId" type="text" maxlength="50" autocomplete="off" placeholder="e.g. EMP-2026-001" />
-        </div>
+      <div class="field">
+        <label for="candidateName">Candidate Full Name</label>
+        <input id="candidateName" type="text" maxlength="100" autocomplete="off"
+               placeholder="e.g. Ayan Panja" oninput="clearErr('nameErr','candidateName')" />
+        <span class="err" id="nameErr" role="alert">Please enter the candidate's full name.</span>
       </div>
 
       <div class="field">
@@ -379,7 +373,6 @@
   // ── Submit ──
   async function submitForm() {
     const name = $("candidateName").value.trim();
-    const empId = $("employeeId").value.trim();
     const file = $("fileInput").files[0];
     let ok = true;
 
@@ -397,7 +390,6 @@
     const fd = new FormData();
     fd.append("candidate_name", name);
     fd.append("file", file);
-    if (empId) fd.append("employee_id", empId);
 
     btn.disabled = true;
     btn.innerHTML = '<span class="ring" style="width:16px;height:16px;border-width:2px"></span> Verifying…';
@@ -516,7 +508,7 @@
       <div class="card"><div class="sec-title">Remarks &amp; Flags</div>${remarks}</div>
 
       <div class="meta">
-        <span class="meta-info">📄 ${esc(fname || data.filename)}${data.employee_id?" · 👤 "+esc(data.employee_id):""} · ${esc(data.request_id)}</span>
+        <span class="meta-info">📄 ${esc(fname || data.filename)} · ${esc(data.request_id)}</span>
         <button class="btn-ghost" onclick="resetForm()">↩ Verify Another</button>
       </div>`;
     $("result").style.display = "block";
@@ -525,7 +517,6 @@
 
   function resetForm() {
     $("candidateName").value = "";
-    $("employeeId").value = "";
     $("fileInput").value = "";
     $("dropFile").textContent = "";
     drop.classList.remove("has");
