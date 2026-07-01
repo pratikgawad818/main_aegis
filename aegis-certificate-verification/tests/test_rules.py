@@ -36,8 +36,16 @@ def test_both_unfit_rejected():
     assert "MEDICAL_STATUS_UNFIT" in codes
 
 
-def test_certificate_fit_pef_unfit_is_conflict():
+def test_certificate_fit_pef_unfit_is_rejected():
+    # PEF says UNFIT → hard failure regardless of certificate → REJECTED
     decision, status, codes = _decide("FIT", "UNFIT")
+    assert decision == "REJECTED"
+    assert "MEDICAL_STATUS_UNFIT" in codes
+
+
+def test_certificate_unfit_pef_fit_is_conflict():
+    # Certificate says UNFIT but PEF says FIT → unusual, needs manual review
+    decision, status, codes = _decide("UNFIT", "FIT")
     assert decision == "MANUAL_REVIEW_REQUIRED"
     assert "STATUS_CONFLICT" in codes
 
@@ -53,9 +61,14 @@ def test_missing_physician_rejected():
 
 
 def test_combine_statuses():
-    assert combine_statuses("FIT", "UNFIT") == ("UNFIT", True)
-    assert combine_statuses("FIT", "FIT") == ("FIT", False)
-    assert combine_statuses("FIT", "NOT_FOUND") == ("FIT", False)
+    # PEF UNFIT + cert FIT → PEF_UNFIT conflict type
+    assert combine_statuses("FIT", "UNFIT") == ("UNFIT", "PEF_UNFIT")
+    # cert UNFIT + PEF FIT → CERT_UNFIT conflict type
+    assert combine_statuses("UNFIT", "FIT") == ("UNFIT", "CERT_UNFIT")
+    # both FIT → no conflict
+    assert combine_statuses("FIT", "FIT") == ("FIT", None)
+    # PEF not found → no conflict
+    assert combine_statuses("FIT", "NOT_FOUND") == ("FIT", None)
 
 
 def test_names_match():

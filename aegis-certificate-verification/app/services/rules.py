@@ -84,22 +84,31 @@ def normalize_medical_status(raw: str) -> str:
 
 def combine_statuses(certificate_status, pef_status):
     """
-    Combine the certificate verdict and the pre-employment-form (PEF) verdict
-    into one effective status, and flag a conflict if they disagree
-    (e.g. the certificate says FIT but the PEF says UNFIT).
+    Combine the certificate verdict and the PEF verdict.
 
-    Returns (effective_status, conflict). The stricter verdict wins:
-    UNFIT > FIT_WITH_RECOMMENDATION > FIT.
+    Returns (effective_status, conflict_type) where conflict_type is:
+      "PEF_UNFIT"  — PEF says UNFIT regardless of certificate (hard failure)
+      "CERT_UNFIT" — certificate says UNFIT but PEF says FIT (manual review)
+      None         — no conflict
+
+    The stricter verdict always wins: UNFIT > FIT_WITH_RECOMMENDATION > FIT.
     """
     cert = normalize_medical_status(certificate_status)
     pef = normalize_medical_status(pef_status)
     known = [s for s in (cert, pef) if s in VALID_STATUSES]
     if not known:
-        return "UNKNOWN", False
+        return "UNKNOWN", None
     order = {"FIT": 1, "FIT_WITH_RECOMMENDATION": 2, "UNFIT": 3}
     effective = max(known, key=lambda s: order[s])
-    conflict = "UNFIT" in known and any(s in ("FIT", "FIT_WITH_RECOMMENDATION") for s in known)
-    return effective, conflict
+
+    # PEF says UNFIT — hard failure regardless of certificate.
+    if pef == "UNFIT" and cert in ("FIT", "FIT_WITH_RECOMMENDATION"):
+        return effective, "PEF_UNFIT"
+    # Certificate says UNFIT but PEF says FIT — unusual, needs manual review.
+    if cert == "UNFIT" and pef in ("FIT", "FIT_WITH_RECOMMENDATION"):
+        return effective, "CERT_UNFIT"
+
+    return effective, None
 
 
 # Problems that cause an automatic REJECTED decision.
@@ -136,15 +145,25 @@ def build_decision(ai_data, candidate_name_on_form, certificate_valid, name_matc
     # Combine the certificate verdict with the pre-employment-form verdict.
     cert_status = ai_data.get("certificate_status") or ai_data.get("medical_status", "")
     pef_status = ai_data.get("pef_status", "")
-    status, conflict = combine_statuses(cert_status, pef_status)
+    status, conflict_type = combine_statuses(cert_status, pef_status)
 
-    if conflict:
+    if conflict_type == "PEF_UNFIT":
+        # PEF says UNFIT — hard failure, takes precedence over the certificate.
+        remarks.append(Remark(
+            code="MEDICAL_STATUS_UNFIT",
+            message=(
+                f"Pre-employment form verdict is UNFIT "
+                f"(certificate says {normalize_medical_status(cert_status)}). "
+                f"The PEF result takes precedence — candidate is NOT cleared."
+            ),
+        ))
+    elif conflict_type == "CERT_UNFIT":
+        # Certificate says UNFIT but PEF says FIT — unusual, flag for review.
         remarks.append(Remark(
             code="STATUS_CONFLICT",
             message=(
-                f"Certificate says {normalize_medical_status(cert_status)} but the "
-                f"pre-employment form says {normalize_medical_status(pef_status)} - "
-                f"the two disagree and need manual review."
+                f"Certificate says UNFIT but the pre-employment form says "
+                f"{normalize_medical_status(pef_status)} — needs manual review."
             ),
         ))
     elif status == "UNFIT":
