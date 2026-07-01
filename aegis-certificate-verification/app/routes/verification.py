@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from app import config
-from app.schemas import VerificationResponse, VerificationResult
+from app.schemas import MedicalHistoryItem, VerificationResponse, VerificationResult
 from app.security import require_api_key
 from app.services.audit import utcnow_iso, write_audit_log
 from app.services.gemini import analyze_with_gemini
@@ -118,6 +118,19 @@ async def verify_medical_certificate(
     })
 
     # 5) Build and return the response.
+    # Parse medical history items from AI data.
+    raw_history = ai_data.get("medical_history", [])
+    if not isinstance(raw_history, list):
+        raw_history = []
+    medical_history = [
+        MedicalHistoryItem(
+            condition=str(item.get("condition", "")).strip(),
+            ticked=bool(item.get("ticked", False)),
+        )
+        for item in raw_history
+        if isinstance(item, dict) and item.get("condition")
+    ]
+
     return VerificationResponse(
         request_id=request_id,
         filename=filename,
@@ -138,6 +151,8 @@ async def verify_medical_certificate(
             pef_status=pef_status,
             medical_status=medical_status,
             final_decision=final_decision,
+            medical_history=medical_history,
+            history_conflict=bool(ai_data.get("history_conflict", False)),
             remarks=remarks,
             verified_at=verified_at,
         ),

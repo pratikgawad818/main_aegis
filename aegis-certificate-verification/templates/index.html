@@ -157,6 +157,7 @@
   .v-APPROVED_WITH_REVIEW { background:linear-gradient(135deg,#D97706,#F59E0B); }
   .v-REJECTED { background:linear-gradient(135deg,#DC2626,#EF4444); }
   .v-MANUAL_REVIEW_REQUIRED { background:linear-gradient(135deg,#4F46E5,#6366F1); }
+  .v-TEMPORARY_UNFIT { background:linear-gradient(135deg,#B45309,#D97706); }
   .v-ico { font-size:38px; position:relative; z-index:1; }
   .v-info { position:relative; z-index:1; flex:1; }
   .v-label { font-size:11px; font-weight:600; opacity:.8; text-transform:uppercase; letter-spacing:1px; }
@@ -194,6 +195,14 @@
   .doc-stat { font-size:11px; margin-top:3px; font-weight:600; }
   .doc.yes .doc-stat { color:var(--ok); }
   .doc.no  .doc-stat { color:var(--bad); }
+
+  /* ── Medical history table ── */
+  .hist-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .hist-table th { text-align:left; font-size:10px; font-weight:700; color:var(--ink-3); text-transform:uppercase; letter-spacing:.7px; padding:0 10px 8px; }
+  .hist-table td { padding:7px 10px; border-top:1px solid var(--line); }
+  .hist-table tr:first-child td { border-top:none; }
+  .hist-yes { font-weight:700; color:var(--bad); }
+  .hist-no  { color:var(--ink-3); }
 
   /* ── Remarks ── */
   .rmk { display:flex; gap:11px; padding:12px 14px; border-radius:10px; margin-bottom:8px; font-size:13px; line-height:1.5; }
@@ -421,10 +430,12 @@
     APPROVED_WITH_REVIEW:   { ic:"⚠️", text:"Approved — Review Required" },
     REJECTED:               { ic:"❌", text:"Rejected" },
     MANUAL_REVIEW_REQUIRED: { ic:"🔍", text:"Manual Review Required" },
+    TEMPORARY_UNFIT:        { ic:"⏸️", text:"Temporary Unfit — Medical History Conflict" },
   };
   const HARD = ["MEDICAL_STATUS_UNFIT","CERTIFICATE_EXPIRED","NAME_MISMATCH","MISSING_PHYSICIAN_STAMP"];
-  const rmkCls = c => HARD.includes(c) ? "hard" : c === "MISSING_OPHTHALMOLOGIST_STAMP" ? "soft" : "info";
-  const rmkIc  = c => HARD.includes(c) ? "🚫" : c === "MISSING_OPHTHALMOLOGIST_STAMP" ? "⚠️" : "💬";
+  const TEMP = ["HISTORY_CONFLICT"];
+  const rmkCls = c => HARD.includes(c) ? "hard" : (TEMP.includes(c) || c === "MISSING_OPHTHALMOLOGIST_STAMP") ? "soft" : "info";
+  const rmkIc  = c => HARD.includes(c) ? "🚫" : TEMP.includes(c) ? "⏸️" : c === "MISSING_OPHTHALMOLOGIST_STAMP" ? "⚠️" : "💬";
   const esc = s => String(s ?? "").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
   const badge = (v, y, n) => v
     ? `<span class="badge ok"><span class="d"></span>${y}</span>`
@@ -504,6 +515,33 @@
             <div class="doc-stat">${r.photo_stamped?"✓ Verified":"✗ Verify manually"}</div></div></div>
         </div>
       </div>
+
+      ${(()=>{
+        // Medical history section — only show when at least one item was found
+        const hist = r.medical_history || [];
+        if (!hist.length) return "";
+        const conflictBanner = r.history_conflict
+          ? `<div class="rmk soft" style="margin-bottom:14px;">
+               <div>⏸️</div>
+               <div><div class="rmk-code">History Conflict Detected</div>
+               <div>One or more ticked conditions conflict with the FIT verdict. HR must review before clearance.</div></div>
+             </div>`
+          : "";
+        const rows = hist.map(h =>
+          `<tr>
+             <td>${esc(h.condition)}</td>
+             <td class="${h.ticked?'hist-yes':'hist-no'}">${h.ticked?"✔ Yes":"No"}</td>
+           </tr>`
+        ).join("");
+        return `<div class="card">
+          <div class="sec-title">Medical History (Self-Reported)</div>
+          ${conflictBanner}
+          <table class="hist-table">
+            <thead><tr><th>Condition</th><th>Reported by Candidate</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+      })()}
 
       <div class="card"><div class="sec-title">Remarks &amp; Flags</div>${remarks}</div>
 

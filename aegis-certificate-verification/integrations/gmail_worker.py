@@ -94,9 +94,15 @@ def verify_pdf(name, filename, pdf_bytes) -> dict:
 
 
 def format_result(data: dict) -> str:
-    """Turn the API response into a readable email body."""
+    """Turn the API response into a readable plain-text email body (fallback)."""
     r = data.get("verification_result", {})
     flags = [x["code"] for x in r.get("remarks", [])]
+
+    # Summarise medical history: list ticked conditions if any.
+    history = r.get("medical_history", [])
+    ticked = [h["condition"] for h in history if h.get("ticked")]
+    history_line = f"Ticked conditions: {', '.join(ticked)}" if ticked else "No conditions ticked"
+
     return (
         "Aegis result\n"
         "----------------\n"
@@ -108,6 +114,7 @@ def format_result(data: dict) -> str:
         f"Name match:       {r.get('name_match')}\n"
         f"Certificate date: {r.get('certificate_date') or '-'} (valid: {r.get('certificate_valid')})\n"
         f"Photo stamped:    {r.get('photo_stamped')}\n"
+        f"Medical history:  {history_line}\n"
         f"Flags:            {', '.join(flags) if flags else 'none'}\n"
         f"\nRequest ID: {data.get('request_id')}\n"
         "\n(Automated screening - the final decision rests with HR.)\n"
@@ -120,6 +127,7 @@ DECISION_STYLES = {
     "APPROVED_WITH_REVIEW":   ("#d97706", "Approved with Review"),
     "REJECTED":               ("#dc2626", "Rejected"),
     "MANUAL_REVIEW_REQUIRED": ("#4f46e5", "Manual Review Required"),
+    "TEMPORARY_UNFIT":        ("#92400e", "Temporary Unfit — Medical History Conflict"),
 }
 
 
@@ -173,6 +181,46 @@ def format_html(data: dict) -> str:
     else:
         flags_html = '<p style="margin:0;color:#16a34a;font-size:14px;">No issues detected.</p>'
 
+    # Medical history table (only if items were found).
+    history = r.get("medical_history", [])
+    if history:
+        conflict = r.get("history_conflict", False)
+        conflict_banner = ""
+        if conflict:
+            conflict_banner = (
+                '<tr><td colspan="2" style="padding:10px 16px;background:#fef3c7;'
+                'color:#92400e;font-size:13px;font-weight:600;">'
+                '⏸️ History conflict detected — ticked condition(s) disagree with the FIT verdict. '
+                'HR must review before clearance.</td></tr>'
+            )
+        hist_rows = "".join(
+            f'<tr style="background:{"#fef2f2" if item.get("ticked") else "#f8fafc"};">'
+            f'<td style="padding:8px 16px;font-size:14px;color:#0f172a;">{item.get("condition","")}</td>'
+            f'<td style="padding:8px 16px;font-size:14px;font-weight:700;text-align:right;'
+            f'color:{"#dc2626" if item.get("ticked") else "#64748b"};">'
+            f'{"✔ Yes" if item.get("ticked") else "No"}</td></tr>'
+            for item in history
+        )
+        history_section = f"""
+        <!-- Medical history -->
+        <tr><td style="padding:16px 24px 0;">
+          <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#475569;
+            text-transform:uppercase;letter-spacing:0.5px;">Medical History (Self-Reported)</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+            style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+            {conflict_banner}
+            <tr style="background:#f1f5f9;">
+              <th style="padding:8px 16px;font-size:11px;font-weight:700;color:#64748b;
+                text-transform:uppercase;letter-spacing:0.5px;text-align:left;">Condition</th>
+              <th style="padding:8px 16px;font-size:11px;font-weight:700;color:#64748b;
+                text-transform:uppercase;letter-spacing:0.5px;text-align:right;">Reported</th>
+            </tr>
+            {hist_rows}
+          </table>
+        </td></tr>"""
+    else:
+        history_section = ""
+
     request_id = data.get("request_id", "-")
 
     return f"""\
@@ -200,6 +248,7 @@ def format_html(data: dict) -> str:
         </td></tr>
         <!-- Notes / flags -->
         <tr><td style="padding:16px 24px;">{flags_html}</td></tr>
+        {history_section}
         <!-- Footer -->
         <tr><td style="padding:16px 24px;border-top:1px solid #e2e8f0;">
           <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.5;">

@@ -11,6 +11,12 @@ class Remark(BaseModel):
     message: str
 
 
+class MedicalHistoryItem(BaseModel):
+    """One ticked / unticked item from the medical history section of the PEF."""
+    condition: str
+    ticked: bool  # True = candidate answered YES / checked this condition
+
+
 class VerificationResult(BaseModel):
     """The detailed result of checking one certificate."""
     candidate_name_on_form: Optional[str] = None
@@ -28,6 +34,8 @@ class VerificationResult(BaseModel):
     pef_status: Optional[str] = None
     medical_status: str
     final_decision: str
+    medical_history: list[MedicalHistoryItem] = []   # ticked/unticked conditions from PEF
+    history_conflict: bool = False                    # True if ticked condition + FIT verdict
     remarks: list[Remark]
     verified_at: str
 

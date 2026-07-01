@@ -117,6 +117,11 @@ REVIEW_FLAGS = {
     "PHOTO_NOT_STAMPED",
 }
 
+# History conflict → TEMPORARY_UNFIT (separate bucket, shown differently in UI).
+TEMP_UNFIT_FLAGS = {
+    "HISTORY_CONFLICT",
+}
+
 
 def build_decision(ai_data, candidate_name_on_form, certificate_valid, name_matched):
     """
@@ -197,10 +202,29 @@ def build_decision(ai_data, candidate_name_on_form, certificate_valid, name_matc
         if str(r).strip():
             remarks.append(Remark(code="MEDICAL_REMARK", message=str(r).strip()))
 
+    # Medical history conflict: candidate ticked a condition but was declared FIT.
+    # List which conditions were ticked so HR knows exactly what to review.
+    if ai_data.get("history_conflict", False):
+        history_items = ai_data.get("medical_history", [])
+        if not isinstance(history_items, list):
+            history_items = []
+        ticked = [i.get("condition", "") for i in history_items if i.get("ticked")]
+        ticked_str = ", ".join(t for t in ticked if t) or "one or more conditions"
+        remarks.append(Remark(
+            code="HISTORY_CONFLICT",
+            message=(
+                f"Candidate self-reported: {ticked_str}. "
+                f"The certificate verdict is {normalize_medical_status(cert_status)} — "
+                f"this discrepancy requires medical review before clearance."
+            ),
+        ))
+
     # Decide the final outcome.
     failed_codes = {r.code for r in remarks}
     if failed_codes & HARD_FAILURES:
         final_decision = "REJECTED"
+    elif failed_codes & TEMP_UNFIT_FLAGS:
+        final_decision = "TEMPORARY_UNFIT"
     elif failed_codes & REVIEW_FLAGS:
         final_decision = "MANUAL_REVIEW_REQUIRED"
     elif status == "FIT_WITH_RECOMMENDATION":

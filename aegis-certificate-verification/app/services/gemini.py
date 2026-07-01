@@ -83,8 +83,25 @@ Fields to return:
    that photograph (the stamp overlaps the photo - a common anti-fraud measure).
    false if the photo has no stamp on it, or if there is no photo.
 
-9. remarks: only real medical findings or notes (defects, conditions, advice).
-   Do NOT invent remarks and do NOT add remarks about missing stamps.
+9. medical_history: scan EVERY page for a medical history / past illness section.
+   These are usually Yes/No or tick-box questions like:
+   "Do you have / have you ever had: Diabetes, Hypertension, Heart disease,
+   Epilepsy, Asthma, TB, Surgery, Mental illness, Colour blindness, Hearing loss,
+   Any chronic medication, Any disability" etc.
+   For EACH question found, return an object with:
+     - "condition": the exact label printed on the form (e.g. "Diabetes", "Epilepsy")
+     - "ticked": true if the candidate answered YES / ticked / marked that condition,
+                 false if answered NO / unticked / left blank.
+   Only include items that are clearly present on the form. If no such section
+   exists at all, return an empty list [].
+
+10. history_conflict: true if ANY condition in medical_history has ticked=true
+    AND the overall certificate_status or pef_status is FIT or FIT_WITH_RECOMMENDATION.
+    This means the candidate self-reported a condition but was still declared fit —
+    that needs a closer look. Set false if no conflict exists.
+
+11. remarks: only real medical findings or notes (defects, conditions, advice).
+    Do NOT invent remarks and do NOT add remarks about missing stamps.
 
 Return ONLY this JSON, no markdown:
 {
@@ -98,6 +115,10 @@ Return ONLY this JSON, no markdown:
     "ophthalmologist_present": true,
     "candidate_photo_present": true,
     "photo_stamped": true,
+    "medical_history": [
+        {"condition": "Diabetes", "ticked": false}
+    ],
+    "history_conflict": false,
     "remarks": []
 }
 """
